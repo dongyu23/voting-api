@@ -1,0 +1,13 @@
+services:
+  app:
+    build:
+      context: ./backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/data:/app/data
+      - ./frontend:/app/frontend
+    environment:
+      - DATABASE_URL=sqlite:///./data/voting.db
+      - JWT_SECRET=change-this-in-production
+      - JWT_EXPIRES_HOURS=24

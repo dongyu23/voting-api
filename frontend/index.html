@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Voting API - Test Console</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:system-ui,sans-serif;background:#f5f5f5;padding:20px;color:#333}
+.container{max-width:900px;margin:0 auto}
+h1{font-size:24px;margin-bottom:8px}
+.subtitle{color:#666;margin-bottom:20px;font-size:14px}
+
+.login-box{background:#fff;padding:20px;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.1);margin-bottom:20px}
+.login-box h3{margin-bottom:12px}
+.row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+.form-group{display:flex;flex-direction:column;gap:4px}
+.form-group label{font-size:13px;color:#555}
+.form-group input{padding:6px 10px;border:1px solid #ddd;border-radius:4px;font-size:14px;width:140px}
+button{padding:6px 16px;border:none;border-radius:4px;cursor:pointer;font-size:14px;white-space:nowrap}
+.btn-primary{background:#2563eb;color:#fff}
+.btn-primary:hover{background:#1d4ed8}
+.btn-danger{background:#dc2626;color:#fff}
+.btn-danger:hover{background:#b91c1c}
+.btn-secondary{background:#6b7280;color:#fff}
+.btn-secondary:hover{background:#4b5563}
+.btn-green{background:#16a34a;color:#fff}
+.btn-green:hover{background:#15803d}
+.btn-sm{padding:4px 10px;font-size:12px}
+
+.user-badge{display:inline-block;background:#dbeafe;color:#1e40af;padding:4px 12px;border-radius:20px;font-size:13px;margin-right:8px}
+.section{background:#fff;padding:20px;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.1);margin-bottom:20px}
+.section h3{margin-bottom:12px;font-size:16px}
+
+.poll-card{background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:14px;margin-bottom:10px}
+.poll-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.poll-title{font-weight:600;font-size:15px}
+.poll-meta{font-size:12px;color:#888}
+.options-list{margin-bottom:10px}
+.option-row{display:flex;align-items:center;justify-content:space-between;padding:6px 10px;margin:2px 0;background:#fff;border-radius:4px;border:1px solid #eee}
+.option-text{font-size:14px}
+.option-bar{flex:1;margin:0 10px;height:8px;background:#e5e7eb;border-radius:4px;overflow:hidden}
+.option-bar-fill{height:100%;background:#2563eb;border-radius:4px;transition:width .3s}
+.option-count{font-size:13px;color:#666;min-width:50px;text-align:right}
+.expired-tag{color:#dc2626;font-weight:600;font-size:12px}
+.voted-tag{color:#16a34a;font-size:12px}
+
+.create-form{display:flex;flex-direction:column;gap:10px}
+.create-form textarea,.create-form input{padding:8px 12px;border:1px solid #ddd;border-radius:4px;font-size:14px}
+.option-input{display:flex;gap:8px;align-items:center}
+.option-input input{flex:1}
+hr{border:none;border-top:1px solid #e5e7eb;margin:12px 0}
+
+#connection-status{font-size:12px;padding:2px 8px;border-radius:10px}
+.connected{background:#d1fae5;color:#065f46}
+.disconnected{background:#fee2e2;color:#991b1b}
+
+.error-msg{background:#fee2e2;color:#991b1b;padding:8px 12px;border-radius:4px;margin-top:8px;font-size:13px;display:none}
+.success-msg{background:#d1fae5;color:#065f46;padding:8px 12px;border-radius:4px;margin-top:8px;font-size:13px;display:none}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>Voting API - Test Console</h1>
+<p class="subtitle">
+  Status: <span id="connection-status" class="disconnected">Checking...</span>
+  &nbsp;|&nbsp; Open multiple tabs, each tab = one user session (sessionStorage isolated)
+</p>
+
+<!-- Login -->
+<div class="login-box" id="login-section">
+  <h3>Login / Register</h3>
+  <div class="row">
+    <div class="form-group"><label>Username</label><input id="username" placeholder="alice"></div>
+    <div class="form-group"><label>Password</label><input id="password" type="password" placeholder="pass123"></div>
+    <button class="btn-primary" onclick="doRegister()">Register</button>
+    <button class="btn-green" onclick="doLogin()">Login</button>
+  </div>
+  <div id="login-error" class="error-msg"></div>
+</div>
+
+<!-- Logged in state -->
+<div id="app-section" style="display:none">
+  <div class="section">
+    <span>Logged in as:</span>
+    <span class="user-badge" id="current-user"></span>
+    <button class="btn-secondary btn-sm" onclick="doLogout()">Logout</button>
+  </div>
+
+  <!-- Create poll -->
+  <div class="section">
+    <h3>Create New Poll</h3>
+    <div class="create-form">
+      <input id="poll-title" placeholder="Poll title" maxlength="200">
+      <div id="options-inputs">
+        <div class="option-input"><input placeholder="Option 1"><button class="btn-danger btn-sm" disabled>×</button></div>
+        <div class="option-input"><input placeholder="Option 2"><button class="btn-danger btn-sm" disabled>×</button></div>
+      </div>
+      <button class="btn-secondary btn-sm" onclick="addOption()">+ Add Option</button>
+      <div class="form-group">
+        <label>Expires at (UTC)</label>
+        <input id="poll-expires" type="datetime-local" style="width:auto">
+      </div>
+      <button class="btn-primary" onclick="createPoll()">Create Poll</button>
+    </div>
+    <div id="create-error" class="error-msg"></div>
+  </div>
+
+  <!-- All polls -->
+  <div class="section">
+    <h3>All Polls</h3>
+    <button class="btn-secondary btn-sm" onclick="loadAllPolls()" style="margin-bottom:10px">Refresh</button>
+    <div id="all-polls"></div>
+  </div>
+
+  <!-- My polls -->
+  <div class="section">
+    <h3>My Polls</h3>
+    <button class="btn-secondary btn-sm" onclick="loadMyPolls()" style="margin-bottom:10px">Refresh</button>
+    <div id="my-polls"></div>
+  </div>
+</div>
+</div>
+
+<script>
+const API = window.location.origin;
+
+// sessionStorage keys
+const TOKEN_KEY = 'jwt_token';
+const USER_KEY = 'current_user';
+
+function $(id){return document.getElementById(id)}
+
+function showError(id, msg){const e=$(id);e.textContent=msg;e.style.display=msg?'block':'none';setTimeout(()=>e.style.display='none',4000)}
+function getToken(){return sessionStorage.getItem(TOKEN_KEY)}
+function setSession(token, user){sessionStorage.setItem(TOKEN_KEY, token);sessionStorage.setItem(USER_KEY, user)}
+function clearSession(){sessionStorage.removeItem(TOKEN_KEY);sessionStorage.removeItem(USER_KEY)}
+
+// Init: check if already logged in (this tab only via sessionStorage)
+(async function init(){
+  const token = getToken();
+  if(token){
+    // Validate token by calling a protected endpoint
+    try{
+      const res = await fetch(API+'/api/v1/polls', {headers:{'Authorization':'Bearer '+token}});
+      if(res.ok){showApp(sessionStorage.getItem(USER_KEY));return;}
+    }catch(e){}
+    clearSession();
+  }
+  // Check connection
+  try{
+    const res = await fetch(API+'/health');
+    const data = await res.json();
+    updateConnectionStatus(true, data.data);
+  }catch(e){
+    updateConnectionStatus(false);
+  }
+})();
+
+function updateConnectionStatus(ok, msg){
+  const s = $('connection-status');
+  if(ok){s.className='connected';s.textContent='Connected: '+msg}
+  else{s.className='disconnected';s.textContent='Disconnected'}
+}
+
+async function doRegister(){
+  const u = $('username').value.trim();
+  const p = $('password').value.trim();
+  if(!u||!p){showError('login-error','Username and password required');return}
+  const res = await fetch(API+'/api/v1/auth/register', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({username:u, password:p})
+  });
+  if(!res.ok){const e=await res.json();showError('login-error',e.detail.message);return}
+  // Auto login after register
+  await doLogin();
+}
+
+async function doLogin(){
+  const u = $('username').value.trim();
+  const p = $('password').value.trim();
+  if(!u||!p){showError('login-error','Username and password required');return}
+  const res = await fetch(API+'/api/v1/auth/login', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({username:u, password:p})
+  });
+  if(!res.ok){const e=await res.json();showError('login-error',e.detail.message);return}
+  const data = await res.json();
+  setSession(data.data.access_token, u);
+  showApp(u);
+}
+
+function doLogout(){
+  clearSession();
+  $('app-section').style.display='none';
+  $('login-section').style.display='block';
+  $('username').value='';
+  $('password').value='';
+}
+
+function showApp(user){
+  $('login-section').style.display='none';
+  $('app-section').style.display='block';
+  $('current-user').textContent=user;
+  loadAllPolls();
+  loadMyPolls();
+}
+
+// Options management
+let optionCount = 2;
+function addOption(){
+  optionCount++;
+  const div = document.createElement('div');
+  div.className='option-input';
+  div.innerHTML = `<input placeholder="Option ${optionCount}"><button class="btn-danger btn-sm" onclick="this.parentElement.remove()">×</button>`;
+  $('options-inputs').appendChild(div);
+}
+
+async function createPoll(){
+  const title = $('poll-title').value.trim();
+  const expiresLocal = $('poll-expires').value;
+  if(!title){showError('create-error','Title required');return}
+  if(!expiresLocal){showError('create-error','Expiry time required');return}
+  const expiresAt = new Date(expiresLocal).toISOString();
+  const inputs = document.querySelectorAll('#options-inputs input');
+  const options = [];
+  inputs.forEach(inp => {const t=inp.value.trim();if(t)options.push({text:t})});
+  if(options.length<2){showError('create-error','At least 2 options required');return}
+
+  const res = await fetch(API+'/api/v1/polls', {
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()},
+    body:JSON.stringify({title, options, expires_at: expiresAt})
+  });
+  if(!res.ok){const e=await res.json();showError('create-error',e.detail.message);return}
+  $('poll-title').value='';
+  $('poll-expires').value='';
+  loadMyPolls();
+}
+
+async function loadAllPolls(){
+  const res = await fetch(API+'/api/v1/polls', {headers:{'Authorization':'Bearer '+getToken()}});
+  if(!res.ok)return;
+  const data = await res.json();
+  const container = $('all-polls');
+  if(!data.data||data.data.length===0){container.innerHTML='<p style="color:#888">No polls available.</p>';return}
+
+  container.innerHTML = data.data.map(poll => {
+    const expired = new Date(poll.expires_at) < new Date();
+    return `<div class="poll-card" id="apoll-${poll.id}">
+      <div class="poll-header">
+        <span class="poll-title">${esc(poll.title)} ${expired?'<span class="expired-tag">EXPIRED</span>':''}</span>
+        <span class="poll-meta">by #${poll.creator_id} · Expires: ${new Date(poll.expires_at).toLocaleString()}</span>
+      </div>
+      <div class="options-list">
+        ${poll.options.map(o => `<div class="option-row">
+          <span class="option-text">${esc(o.text)}</span>
+          ${!expired ? `<button class="btn-green btn-sm" onclick="doVote(${poll.id},${o.id})">Vote</button>` : ''}
+          <span class="voted-tag" id="avote-status-${poll.id}"></span>
+        </div>`).join('')}
+      </div>
+      <div style="margin-top:8px">
+        <button class="btn-green btn-sm" onclick="loadResults(${poll.id},'aresults-${poll.id}')">Results</button>
+        <span id="aresults-${poll.id}" style="font-size:13px;margin-left:8px"></span>
+      </div>
+    </div>`;
+  }).join('');
+
+  for(const poll of data.data){
+    await checkMyVoteStatus(poll.id);
+  }
+}
+
+async function checkMyVoteStatus(pollId){
+  const res = await fetch(API+`/api/v1/polls/${pollId}/results`, {headers:{'Authorization':'Bearer '+getToken()}});
+  if(!res.ok)return;
+  const data = await res.json();
+  if(data.data.total_votes > 0){
+    const el = document.getElementById('avote-status-'+pollId);
+    if(el) el.textContent = 'You may have voted';
+  }
+}
+
+async function doVote(pollId, optionId){
+  const res = await fetch(API+`/api/v1/polls/${pollId}/vote`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()},
+    body:JSON.stringify({option_id:optionId})
+  });
+  if(!res.ok){const e=await res.json();alert(e.detail.message);return}
+  alert('Vote submitted!');
+  document.getElementById('avote-status-'+pollId).textContent = '✓ Voted';
+  loadResults(pollId, 'aresults-'+pollId);
+}
+
+async function loadMyPolls(){
+  const res = await fetch(API+'/api/v1/polls/mine', {headers:{'Authorization':'Bearer '+getToken()}});
+  if(!res.ok)return;
+  const data = await res.json();
+  const container = $('my-polls');
+  if(!data.data||data.data.length===0){container.innerHTML='<p style="color:#888">No polls yet. Create one above.</p>';return}
+
+  container.innerHTML = data.data.map(poll => {
+    const expired = new Date(poll.expires_at) < new Date();
+    return `<div class="poll-card" id="mpoll-${poll.id}">
+      <div class="poll-header">
+        <span class="poll-title">${esc(poll.title)} ${expired?'<span class="expired-tag">EXPIRED</span>':''}</span>
+        <span class="poll-meta">Expires: ${new Date(poll.expires_at).toLocaleString()}</span>
+      </div>
+      <div class="options-list">
+        ${poll.options.map(o => `<div class="option-row"><span class="option-text">${esc(o.text)}</span></div>`).join('')}
+      </div>
+      <div style="margin-top:8px">
+        <button class="btn-green btn-sm" onclick="loadResults(${poll.id},'mresults-${poll.id}')">Results</button>
+        <button class="btn-danger btn-sm" onclick="deletePoll(${poll.id})">Delete</button>
+        <span id="mresults-${poll.id}" style="font-size:13px;margin-left:8px"></span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function loadResults(pollId, targetId){
+  const res = await fetch(API+`/api/v1/polls/${pollId}/results`, {headers:{'Authorization':'Bearer '+getToken()}});
+  if(!res.ok)return;
+  const data = await res.json();
+  const r = data.data;
+  const max = r.total_votes || 1;
+  let html = `<div style="margin-top:8px"><strong>Results:</strong> Total ${r.total_votes} vote(s) ${r.expired?'<span class="expired-tag">EXPIRED</span>':''}</div>`;
+  for(const o of r.options){
+    const pct = Math.round(o.count/max*100);
+    html += `<div class="option-row">
+      <span class="option-text">${esc(o.text)}</span>
+      <div class="option-bar"><div class="option-bar-fill" style="width:${pct}%"></div></div>
+      <span class="option-count">${o.count} (${pct}%)</span>
+    </div>`;
+  }
+  document.getElementById(targetId).innerHTML = html;
+}
+
+async function deletePoll(pollId){
+  if(!confirm('Delete this poll?'))return;
+  const res = await fetch(API+`/api/v1/polls/${pollId}`, {
+    method:'DELETE', headers:{'Authorization':'Bearer '+getToken()}
+  });
+  if(!res.ok){const e=await res.json();alert(e.detail.message);return}
+  loadMyPolls();
+}
+
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+</script>
+</body>
+</html>
