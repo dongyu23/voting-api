@@ -1,34 +1,52 @@
-# Voting API
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.11+-blue?logo=python" alt="Python"/>
+  <img src="https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi" alt="FastAPI"/>
+  <img src="https://img.shields.io/badge/SQLite-WAL-003B57?logo=sqlite" alt="SQLite"/>
+  <img src="https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker" alt="Docker"/>
+  <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT"/>
+</p>
 
-基于 FastAPI + SQLite 的轻量级多人投票 API 服务。支持创建投票、提交选票、查询实时结果——JWT 身份认证 + 一人一票（应用层 + 数据库层双重保障）。
+<h1 align="center">Voting API</h1>
+<p align="center"><strong>一个基于 FastAPI + SQLite 的轻量多人投票服务，面向小团队内部决策场景——注册即投、一人一票、实时看结果。</strong></p>
 
-## 功能
+## 这是什么
 
-- **投票管理** — 创建、编辑、删除投票，支持多选项和 UTC 截止时间
-- **选票提交** — 每人每投票限投一次，数据库唯一约束 + 应用层校验双保险
-- **实时结果** — 每个选项的得票数和百分比，随时查询
-- **JWT 认证** — 注册/登录，密码 bcrypt 哈希，token 24 小时过期，预留认证方式切换钩子
-- **多 Tab 测试** — 前端使用 `sessionStorage` 存储 token，同一浏览器多 Tab 可同时登录不同用户
-- **并发安全** — SQLite WAL 模式 + `busy_timeout` 处理写竞争，全链路 UTC 时间戳
-- **一键部署** — Docker Compose 启动
+团队里时不时需要投票决定一件事——午饭吃什么、方案选哪个、要不要加班团建。微信群接龙太乱，在线问卷太重，开一个 Google Form 又小题大做。
+
+Voting API 就是解决这个问题的：**Docker 一键拉起来，创建一个投票，把链接丢到群里，大家打开浏览器就能投。** 不做匿名、不做分享、不做评论——就是一个极简的投票工具，够用就好。
+
+## 能做什么
+
+- **创建投票** — 标题 + 多个选项 + 截止时间，创建者可以编辑或删除
+- **一人一票** — 应用层校验 + 数据库唯一约束双保险，并发场景下不会重复投
+- **实时结果** — 随时查看每个选项的得票数和百分比
+- **账号体系** — 注册/登录，密码 bcrypt 哈希，JWT 24 小时过期
+- **多 Tab 并行测试** — `sessionStorage` 隔离 token，同一个浏览器开多个 Tab 各登各的号
+- **并发安全** — SQLite WAL 模式 + `busy_timeout`，20+ 并发写入不丢数据
 
 ## 快速开始
 
-### 环境要求
+### 前置条件
 
-- Python 3.11+ 或 Docker
+- Python 3.11+，或者 Docker
 
-### 本地运行
+### 本地跑起来
 
 ```bash
 cd backend
 pip install -r requirements.txt
-uvicorn main:app --port 8000
+uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
-浏览器打开 `http://localhost:8000`，FastAPI 直接托管前端测试页面。
+浏览器打开 `http://localhost:8000`，后端直接托管前端测试页。
 
-### Docker
+```bash
+# 验证一下服务是否正常
+curl http://localhost:8000/health
+# → {"code":200,"message":"ok"}
+```
+
+### Docker 部署
 
 ```bash
 docker compose up --build
@@ -36,116 +54,92 @@ docker compose up --build
 
 服务监听 8000 端口，SQLite 数据通过 `backend/data` 目录持久化。
 
-## API 文档
+### 测试账号
 
-所有接口统一返回格式：`{"code": 200, "message": "success", "data": {...}}`。
+预注册了三个用户，开箱即用：`alice`、`bob`、`charlie`，密码都是 `pass123`。
+
+打开多个 Tab，各自登录不同用户，就能模拟多人投票场景。
+
+## API 概览
+
+所有接口统一响应格式：
+
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {}
+}
+```
 
 ### 认证
 
-| 方法 | 接口 | 需要登录 | 说明 |
-|--------|----------|------|-------------|
-| POST | `/api/v1/auth/register` | 否 | 注册 |
-| POST | `/api/v1/auth/login` | 否 | 登录，返回 JWT |
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/v1/auth/register` | 注册新用户 |
+| POST | `/api/v1/auth/login` | 登录，返回 JWT |
 
-### 投票
+### 投票（需要 Bearer Token）
 
-| 方法 | 接口 | 需要登录 | 说明 |
-|--------|----------|------|-------------|
-| GET | `/api/v1/polls` | 是 | 所有投票列表（发现 + 投票池） |
-| GET | `/api/v1/polls/mine` | 是 | 我创建的投票 |
-| POST | `/api/v1/polls` | 是 | 创建投票（含选项和截止时间） |
-| GET | `/api/v1/polls/{id}` | 是 | 投票详情 |
-| PUT | `/api/v1/polls/{id}` | 是 | 编辑投票（仅创建者） |
-| DELETE | `/api/v1/polls/{id}` | 是 | 删除投票（仅创建者） |
-| POST | `/api/v1/polls/{id}/vote` | 是 | 提交选票 |
-| GET | `/api/v1/polls/{id}/results` | 是 | 查询实时结果 |
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/v1/polls` | 全部投票列表 |
+| GET | `/api/v1/polls/mine` | 我创建的投票 |
+| POST | `/api/v1/polls` | 创建投票 |
+| GET | `/api/v1/polls/{id}` | 投票详情 |
+| PUT | `/api/v1/polls/{id}` | 编辑投票（仅创建者） |
+| DELETE | `/api/v1/polls/{id}` | 删除投票（仅创建者） |
+| POST | `/api/v1/polls/{id}/vote` | 提交选票 |
+| GET | `/api/v1/polls/{id}/results` | 查看实时结果 |
 
-### 健康检查
+### 错误码
 
-| 方法 | 接口 | 需要登录 | 说明 |
-|--------|----------|------|-------------|
-| GET | `/health` | 否 | 健康检查 |
-
-### 业务错误码
-
-| 范围 | 含义 |
-|-------|---------|
+| 码段 | 含义 |
+|------|------|
 | 1001 | 认证失败 / token 无效 |
-| 1002 | 用户名已被占用 |
+| 1002 | 用户名已被注册 |
 | 2001 | 投票已过期 |
-| 2002 | 已经投过票 |
-| 2003 | 无效的选项 |
+| 2002 | 已经投过票了 |
+| 2003 | 选项不存在 |
 | 2004 | 投票不存在 |
-| 2005 | 非创建者无权修改 |
+| 2005 | 无权操作（非创建者） |
+
+## 技术栈
+
+| 层 | 选型 | 为什么选它 |
+|---|------|-----------|
+| 框架 | FastAPI | 异步支持好，自动生成 API 文档 |
+| 数据库 | SQLite (WAL 模式) | 单文件零运维，读写不互斥 |
+| 认证 | python-jose + bcrypt | JWT 24h 过期，预留认证切换钩子 |
+| 前端 | 原生 HTML/CSS/JS | 纯测试用，不引入框架 |
+| 部署 | Docker Compose | 单容器一键拉起 |
 
 ## 项目结构
 
 ```
-demo/
-├── CLAUDE.md                  # 项目规范文档（SDD）
-├── README.md
-├── docker-compose.yml
-├── .gitignore
 ├── backend/
-│   ├── Dockerfile
-│   ├── requirements.txt
-│   ├── config.py              # 环境变量配置
-│   ├── database.py            # SQLite 连接 + WAL 配置
-│   ├── models.py              # SQLAlchemy ORM（User、Poll、Option、Vote）
-│   ├── schemas.py             # Pydantic 请求/响应模型
-│   ├── auth.py                # JWT + bcrypt，get_current_user 依赖注入
-│   ├── main.py                # FastAPI 入口，CORS，前端静态文件托管
-│   ├── routers/
-│   │   ├── auth.py            # /api/v1/auth/*
-│   │   └── polls.py           # /api/v1/polls/*
-│   ├── services/
-│   │   ├── auth.py            # 注册/登录逻辑
-│   │   └── polls.py           # 投票 CRUD、投票、结果统计
-│   └── data/                  # SQLite 数据库文件（git 忽略）
-└── frontend/
-    └── index.html             # 测试控制台（纯 HTML/JS）
+│   ├── main.py           # FastAPI 入口，CORS，静态文件托管
+│   ├── database.py       # SQLite 连接 + WAL 配置
+│   ├── models.py         # SQLAlchemy ORM（User, Poll, Option, Vote）
+│   ├── schemas.py        # Pydantic 请求/响应模型
+│   ├── auth.py           # JWT + bcrypt，get_current_user 依赖
+│   ├── config.py         # 环境变量配置
+│   ├── routers/          # 路由层（参数校验 → 调 Service）
+│   ├── services/         # 业务逻辑层（规则、流程、DB 操作）
+│   └── data/             # SQLite 数据库文件（git 忽略）
+├── frontend/
+│   └── index.html        # 测试控制台（多 Tab 多用户）
+├── docker-compose.yml
+└── CLAUDE.md             # 项目规范（给 AI 看，不是给用户看）
 ```
 
-## 架构决策
+## 关键设计决策
 
-### SQLite WAL 模式
+**为什么用 SQLite 而不是 PostgreSQL？** 10 人小团队用 PostgreSQL 是杀鸡用牛刀。SQLite 开 WAL 模式后读写不互斥，配合 5 秒写锁等待，20+ 并发完全够用。单文件、零运维。
 
-WAL（Write-Ahead Logging）允许写入期间并发读取——读不阻塞写。配合 `busy_timeout=5000ms`，20+ 并发投票下的写竞争可以平滑处理，无需升级到 PostgreSQL。
+**一人一票怎么保证？** 两层防护：应用层先查是否已投 → 返回友好提示；数据库层 `UNIQUE(poll_id, user_id)` 兜底。代码检查 + 数据库约束，并发竞态也伤不到。
 
-### 全链路 UTC
-
-所有时间戳以 ISO 8601 UTC 存储和比较。前端输入时将本地时间转为 UTC 发给后端，展示时浏览器自动转回本地时区。避免 Docker 容器与宿主机之间的时区漂移问题。
-
-### 一人一票：双重保障
-
-1. **应用层** — Service 中显式查询是否已投，返回友好错误提示
-2. **数据库层** — `votes` 表 `UNIQUE(poll_id, user_id)` 约束，并发竞态的最后防线
-
-### 后端分层
-
-```
-Router（参数校验、HTTP 相关）
-  → Service（业务逻辑、跨模块调用）
-    → Model（SQLAlchemy ORM，不含业务逻辑）
-```
-
-ORM 对象不直接返回给客户端，通过 Pydantic Schema 转换——数据库表结构变更不会直接暴露到 API 响应中。
-
-## 多用户测试
-
-在浏览器中打开多个 Tab，每个 Tab 的 JWT 存在独立的 `sessionStorage` 中，可以同时登录不同用户进行交互测试。
-
-预注册测试账号：`alice`、`bob`、`charlie`（密码均为 `pass123`）。
-
-## 技术栈
-
-| 层 | 技术 |
-|-------|-----------|
-| 后端 | Python 3.11+ / FastAPI / SQLAlchemy |
-| 数据库 | SQLite（WAL 模式） |
-| 认证 | python-jose（JWT）/ bcrypt |
-| 前端 | 原生 HTML/CSS/JS |
-| 部署 | Docker Compose |
+**时间怎么处理？** 全链路 UTC。前端 `new Date(localTime).toISOString()` 发给后端，后端存 ISO 8601 文本，展示时浏览器自动转本地时区。Docker 容器和宿主机时区不一致也没事。
 
 ## License
 
